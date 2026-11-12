@@ -1,0 +1,32 @@
+# ——— Dependencias (regenerables con `bun install`) ———
+node_modules/
+
+# ——— Build de Next.js (regenerable) ———
+.next/
+out/
+
+# ——— Secretos: NUNCA al repo ———
+.env
+.env.*
+!.env.example
+
+# ——— Artefactos de ejecución / logs ———
+*.log
+dev.log
+server.log
+
+# ——— Base de datos runtime (el schema vive en prisma/) ———
+db/
+
+# ——— Capturas personales de conversación (privacidad: contienen rutas del PC del usuario) ———
+upload/
+
+# ——— Salidas internas de herramientas del entorno ———
+tool-results/
+
+# ——— Scaffolding de la plantilla del sandbox (ajeno al proyecto) ———
+tests/
+
+# ——— Sistema ———
+.DS_Store
+Thumbs.db

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo — audio-merger</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 780px; margin: 0 auto; padding: 32px 16px 80px; color: #1c2321; }
+  h1 { font-size: 1.5rem; }
+  .bloque { border: 1px solid #e2e8e4; border-radius: 14px; padding: 18px; margin-top: 18px; }
+  audio-merger { margin-top: 10px; }
+  code { background: #f1f5f2; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<h1>Demo de <code>&lt;audio-merger&gt;</code></h1>
+<p>
+  Esta página usa la build UMD con la configuración <strong>por defecto</strong>:
+  el motor se descarga de la CDN anclada la primera vez que se une (nunca en el arranque).
+  Para desarrollo local: <code>bun run build && bun run dev</code> dentro de
+  <code>audio-merger/</code>.
+</p>
+
+<div class="bloque">
+  <h2>Embebido tal cual lo usaría una web ajena</h2>
+  <!-- El embed completo es exactamente esto: un script y una etiqueta. -->
+  <script src="/audio-merger/audio-merger.umd.js"></script>
+  <audio-merger locale="es"></audio-merger>
+</div>
+
+<div class="bloque">
+  <h2>Con atributos</h2>
+  <audio-merger locale="es" theme="auto" format="mp3" bitrate="320" engine-base="/ffmpeg" virtualize-threshold="50"></audio-merger>
+</div>
+
+<p class="nota">La batería del motor con fixtures reales vive en <a href="/selftest.html">/selftest.html</a>.</p>
+</body>
+</html>

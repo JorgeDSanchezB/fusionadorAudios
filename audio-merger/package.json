@@ -1,0 +1,48 @@
+{
+  "name": "@zai/audio-merger",
+  "version": "1.0.0",
+  "description": "Une varios archivos de audio en uno solo, 100% en el navegador. Web Component <audio-merger> embebible con una etiqueta <script>.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/audio-merger.umd.js",
+  "module": "./dist/audio-merger.es.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/audio-merger.es.js",
+      "require": "./dist/audio-merger.umd.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fixtures": "bash tests/fixtures/generate.sh",
+    "sync:demo": "bash scripts/sync-host.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "audio",
+    "merge",
+    "concat",
+    "ffmpeg",
+    "wasm",
+    "web-component",
+    "navegador"
+  ],
+  "devDependencies": {
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@ffmpeg/util": "0.12.2",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.3",
+    "vite": "6.4.5",
+    "vitest": "3.2.7"
+  }
+}

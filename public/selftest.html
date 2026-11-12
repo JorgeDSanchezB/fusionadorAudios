@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Batería selftest del motor — audio-merger</title>
+<style>
+  :root { font-family: system-ui, sans-serif; }
+  body { max-width: 860px; margin: 0 auto; padding: 24px 16px 80px; color: #1c2321; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.05rem; margin-top: 28px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8e4; vertical-align: top; }
+  tr.pasado td:first-child::before { content: "✓ "; color: #0f7a5a; font-weight: 700; }
+  tr.fallido td:first-child::before { content: "✗ "; color: #b3261e; font-weight: 700; }
+  code { background: #f1f5f2; padding: 1px 5px; border-radius: 4px; font-size: 0.82em; }
+  .resumen { margin-top: 20px; padding: 14px 16px; border-radius: 10px; font-weight: 600; }
+  .resumen.ok { background: #e6f4ee; color: #0b5c44; }
+  .resumen.mal { background: #fdeceb; color: #b3261e; }
+  button { font: inherit; padding: 10px 18px; border-radius: 10px; border: 0; background: #0f7a5a; color: #fff; font-weight: 600; cursor: pointer; }
+  .nota { color: #5b6660; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<h1>Batería selftest del motor (ffmpeg.wasm real)</h1>
+<p class="nota">
+  Ejecuta la unión con los <strong>fixtures reales</strong> del repo (MP3, WAV, OGG, M4A, FLAC,
+  OPUS como extensión registrada, corrupto) usando el build UMD servido por el host y el core
+  autohospedado en <code>/ffmpeg/core</code>. Es la capa de prueba declarada en D-12
+  (el motor no puede ejecutarse en Node). Resultado expuesto en <code>window.__selftest</code>.
+</p>
+<button id="ejecutar">Ejecutar batería</button>
+<div id="tabla"></div>
+<div id="resumen" class="resumen" hidden></div>
+
+<script src="/audio-merger/audio-merger.umd.js"></script>
+<script>
+'use strict';
+/* Batería del motor con fixtures reales (D-12). Cada caso devuelve {ok, detalle}. */
+const A = window.AudioMerger;
+const resultados = [];
+let terminado = false;
+
+function anadir(nombre) {
+  let tabla = document.querySelector('table');
+  if (!tabla) {
+    document.getElementById('tabla').innerHTML =
+      '<table><thead><tr><th style="width:34%">Caso</th><th>Detalle</th></tr></thead><tbody></tbody></table>';
+    tabla = document.querySelector('table');
+  }
+  const tr = document.createElement('tr');
+  const td1 = document.createElement('td'); td1.textContent = nombre;
+  const td2 = document.createElement('td'); td2.textContent = '…';
+  tr.append(td1, td2);
+  tabla.tBodies[0].appendChild(tr);
+  return (ok, detalle) => {
+    tr.className = ok ? 'pasado' : 'fallido';
+    td2.textContent = detalle;
+    resultados.push({ nombre, ok, detalle });
+    const pasadas = resultados.filter(r => r.ok).length;
+    document.getElementById('resumen').hidden = false;
+    const resumen = document.getElementById('resumen');
+    resumen.className = 'resumen ' + (pasadas === resultados.length ? 'ok' : 'mal');
+    resumen.textContent = `${pasadas}/${resultados.length} casos correctos${terminado ? ' (completa)' : ''}`;
+  };
+}
+
+async function fixture(nombre) {
+  const respuesta = await fetch(`/fixtures/${nombre}`);
+  if (!respuesta.ok) throw new Error(`fixture ${nombre}: HTTP ${respuesta.status}`);
+  const blob = await respuesta.blob();
+  const mime = {
+    mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', oga: 'audio/ogg',
+    flac: 'audio/flac', opus: 'audio/ogg',
+  }[nombre.split('.').pop()] || 'application/octet-stream';
+  return new File([blob], nombre, { type: mime });
+}
+
+function entrada(file) {
+  return { id: `f-${file.name}-${Math.random().toString(36).slice(2, 8)}`, name: file.name, blob: file };
+}
+
+/** Duración REAL decodificando cabeceras con el propio navegador. */
+function duracionReal(blob) {
+  return new Promise((resolver) => {
+    const url = URL.createObjectURL(blob);
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => { const d = audio.duration; URL.revokeObjectURL(url); resolver(Number.isFinite(d) ? d * 1000 : null); };
+    audio.onerror = () => { URL.revokeObjectURL(url); resolver(null); };
+    audio.src = url;
+  });
+}
+
+async function unir(archivos, opciones) {
+  const union = A.crearUnion({ engine: { base: '/ffmpeg' } });
+  const salidas = [];
+  const progreso = [];
+  const r = await union.merge(archivos.map(entrada), opciones, { onProgress: (p) => progreso.push(p.progress) });
+  salidas.push(r);
+  return { r, progreso };
+}
+
+async function main() {
+  document.getElementById('ejecutar').disabled = true;
+  document.getElementById('tabla').innerHTML = '';
+
+  // — 0) El motor NO se carga en el arranque (listón verificable en el primer render) —
+  {
+    const cerrar = anadir('WASM no se carga en el arranque');
+    const recursos = performance.getEntriesByType('resource').map(e => e.name);
+    const scriptsFfmpeg = [...document.querySelectorAll('script[src]')].map(s => s.src).filter(s => s.includes('ffmpeg'));
+    const ok = !recursos.some(u => u.includes('/ffmpeg/')) && scriptsFfmpeg.length === 0;
+    cerrar(ok, ok
+      ? 'ningún recurso /ffmpeg/ en el primer render; el único script inicial es audio-merger.umd.js'
+      : `recursos ffmpeg detectados: ${recursos.filter(u => u.includes('/ffmpeg/')).join(', ')}`);
+  }
+
+  const casos = [
+    {
+      nombre: 'MP3+MP3 → MP3 (copia -c copy)',
+      archivos: ['tono-440-est.mp3', 'tono-440-est.mp3'],
+      opciones: { format: 'mp3', bitrateKbps: 192, fadeMs: 0 },
+      esperado: { estrategia: 'copy', duracionMs: 6060 },
+    },
+    {
+      nombre: 'MP3 mono 22050 + MP3 estéreo → MP3 (re-codificación)',
+      archivos: ['tono-880-mono.mp3', 'tono-440-est.mp3'],
+      opciones: { format: 'mp3', bitrateKbps: 192, fadeMs: 0 },
+      esperado: { estrategia: 'reencode', duracionMs: 5090 },
+    },
+    {
+      nombre: 'WAV + MP3 → MP3 320',
+      archivos: ['voz-sim.wav', 'tono-440-est.mp3'],
+      opciones: { format: 'mp3', bitrateKbps: 320, fadeMs: 0 },
+      esperado: { estrategia: 'reencode', duracionMs: 5030 },
+    },
+    {
+      nombre: 'M4A (AAC) + MP3 → MP3',
+      archivos: ['tono-660.m4a', 'tono-440-est.mp3'],
+      opciones: { format: 'mp3', bitrateKbps: 192, fadeMs: 0 },
+      esperado: { estrategia: 'reencode', duracionMs: 5030 },
+    },
+    {
+      nombre: 'FLAC + MP3 → WAV (PCM)',
+      archivos: ['tono-220.flac', 'tono-440-est.mp3'],
+      opciones: { format: 'wav', bitrateKbps: null, fadeMs: 0 },
+      esperado: { estrategia: 'reencode', duracionMs: 6030 },
+    },
+    {
+      nombre: 'OGG (vorbis) + MP3 → MP3',
+      archivos: ['ruido.oga', 'tono-440-est.mp3'],
+      opciones: { format: 'mp3', bitrateKbps: 128, fadeMs: 0 },
+      esperado: { estrategia: 'reencode', duracionMs: 5030 },
+    },
+    {
+      nombre: 'EXTENSIÓN: registrar OPUS por API y unir OPUS+MP3 (Regla del Carro)',
+      archivos: ['tono-550.opus', 'tono-440-est.mp3'],
+      opciones: { format: 'mp3', bitrateKbps: 192, fadeMs: 0 },
+      esperado: { estrategia: 'reencode', duracionMs: 5040 },
+      antes: () => A.registrarFormatoEntrada({
+        id: 'opus', extensions: ['opus'], mimeTypes: ['audio/opus', 'audio/ogg; codecs=opus'], etiquetaKey: 'formato.opus',
+      }),
+    },
+    {
+      nombre: 'FUNDIDO: fade 200 ms entre pistas (post-proceso registrado)',
+      archivos: ['tono-440-est.mp3', 'tono-220.flac'],
+      opciones: { format: 'mp3', bitrateKbps: 192, fadeMs: 200 },
+      esperado: { estrategia: 'reencode', duracionMs: 6030 },
+    },
+  ];
+
+  for (const caso of casos) {
+    const cerrar = anadir(caso.nombre);
+    try {
+      if (caso.antes) caso.antes();
+      const archivos = [];
+      for (const n of caso.archivos) archivos.push(await fixture(n));
+      const { r, progreso } = await unir(archivos, caso.opciones);
+      const detalles = [];
+      let ok = true;
+      const estrategiaOk = r.strategy === caso.esperado.estrategia;
+      ok = ok && estrategiaOk;
+      detalles.push(`estrategia=${r.strategy}${estrategiaOk ? '' : ` (esperada ${caso.esperado.estrategia})`}`);
+      if (r.blob.size <= 0) { ok = false; detalles.push('salida vacía'); }
+      const bytes = new Uint8Array(await r.blob.slice(0, 16).arrayBuffer());
+      const snifferOk = r.mimeType === 'audio/mpeg' ? A.esMp3(bytes) : A.esWav(bytes);
+      ok = ok && snifferOk;
+      detalles.push(`contenedor=${snifferOk ? 'válido' : 'INVÁLIDO'} (${r.mimeType})`);
+      const dur = await duracionReal(r.blob);
+      const tolerancia = Math.max(2000, caso.esperado.duracionMs * 0.02);
+      const durOk = dur !== null && Math.abs(dur - caso.esperado.duracionMs) <= tolerancia;
+      ok = ok && durOk;
+      detalles.push(`duración=${dur === null ? 'null' : Math.round(dur) + ' ms'} (esperada ≈${caso.esperado.duracionMs} ±${Math.round(tolerancia)})`);
+      detalles.push(`tamaño=${(r.blob.size / 1024).toFixed(1)} KB`);
+      const monotonos = progreso.every((v, i) => i === 0 || v >= progreso[i - 1]);
+      if (!monotonos) { ok = false; detalles.push('progreso NO monotónico'); }
+      if (r.warnings.length > 0) detalles.push(`avisos=${r.warnings.map(w => w.code).join(',')}`);
+      cerrar(ok, detalles.join(' · '));
+    } catch (e) {
+      const err = e && e.code ? e : { code: 'SIN_CÓDIGO', message: String(e) };
+      cerrar(false, `error ${err.code}: ${err.message}`);
+    }
+  }
+
+  // — Archivo corrupto → CORRUPT_FILE clasificado —
+  {
+    const cerrar = anadir('CORRUPTO: roto.mp3 + MP3 → CORRUPT_FILE');
+    try {
+      const archivos = [await fixture('roto.mp3'), await fixture('tono-440-est.mp3')];
+      await unir(archivos, { format: 'mp3', bitrateKbps: 192, fadeMs: 0 });
+      cerrar(false, 'la unión NO debía completarse con un archivo corrupto');
+    } catch (e) {
+      const err = e && e.code ? e : { code: 'SIN_CÓDIGO', message: String(e) };
+      cerrar(err.code === 'CORRUPT_FILE', `código=${err.code} (${err.message})`);
+    }
+  }
+
+  // — Cancelación inmediata → USER_CANCELLED —
+  {
+    const cerrar = anadir('Cancelación (AbortSignal) → USER_CANCELLED');
+    try {
+      const archivos = [await fixture('tono-440-est.mp3'), await fixture('voz-sim.wav')];
+      const union = A.crearUnion({ engine: { base: '/ffmpeg' } });
+      const control = new AbortController();
+      const promesa = union.merge(archivos.map(entrada), { format: 'mp3', bitrateKbps: 192, fadeMs: 0 }, { signal: control.signal });
+      control.abort();
+      await promesa;
+      cerrar(false, 'la promesa no debía resolverse tras abortar');
+    } catch (e) {
+      const err = e && e.code ? e : { code: 'SIN_CÓDIGO', message: String(e) };
+      cerrar(err.code === 'USER_CANCELLED', `código=${err.code}`);
+    }
+  }
+
+  // — Componente <audio-merger> de principio a fin (API pública) —
+  {
+    const cerrar = anadir('Componente <audio-merger>: addFiles → merge → resultado');
+    try {
+      const el = document.createElement('audio-merger');
+      el.setAttribute('engine-base', '/ffmpeg');
+      document.body.appendChild(el);
+      const añadidas = await el.addFiles([await fixture('tono-440-est.mp3'), await fixture('voz-sim.wav')]);
+      if (añadidas.length !== 2) throw new Error(`addFiles añadió ${añadidas.length} de 2`);
+      await new Promise((r) => setTimeout(r, 300)); // metadatos de duración (D-10)
+      const salida = await el.merge();
+      const ok = salida.blob.size > 0 && salida.mimeType === 'audio/mpeg' && el.state === 'completed' && !!el.result;
+      cerrar(ok, `estado=${el.state} · tamaño=${(salida.blob.size / 1024).toFixed(1)} KB · ${el.result ? 'resultado accesible' : 'SIN resultado'}`);
+      el.remove();
+    } catch (e) {
+      const err = e && e.code ? e : { code: 'SIN_CÓDIGO', message: String(e) };
+      cerrar(false, `error ${err.code}: ${err.message}`);
+    }
+  }
+
+  terminado = true;
+  const pasadas = resultados.filter(r => r.ok).length;
+  const resumen = document.getElementById('resumen');
+  resumen.className = 'resumen ' + (pasadas === resultados.length ? 'ok' : 'mal');
+  resumen.textContent = `${pasadas}/${resultados.length} casos correctos (completa)`;
+  document.title = `selftest audio-merger: ${pasadas}/${resultados.length}`;
+}
+
+window.__selftest = {
+  get resultados() { return resultados; },
+  get terminado() { return terminado; },
+  get pasadas() { return resultados.filter(r => r.ok).length; },
+};
+
+document.getElementById('ejecutar').addEventListener('click', () => { void main(); });
+// Ejecución automática al abrir (la batería también se dispara sola para automatización).
+void main();
+</script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+FUSIONADOR DE AUDIO — VERSIÓN PORTABLE (1.0.3)
+==============================================
+
+Esta versión NO necesita instalación:
+
+1. Descomprime esta carpeta ZIP donde quieras (p. ej. D:\PROGRAMAS\
+   FusionadorDeAudio) — NO hace falta ejecutar nada como administrador.
+2. Haz doble clic en «FusionadorDeAudio.exe» y ya está.
+3. Para «desinstalarla»: borra la carpeta. No toca el registro ni crea
+   accesos; si ya tenías la versión instalada, ambas pueden coexistir.
+
+CÓMO USARLO
+-----------
+1. Pulsa «Añadir audios…» o arrastra archivos a la ventana.
+2. Ordena las pistas a tu gusto (la fusión sigue el orden de la lista):
+   arrastrándolas dentro de la lista, con los botones «Subir» y «Bajar»,
+   o con Alt+↑ / Alt+↓. La pista añadida queda resaltada al cargar.
+3. Elige el formato de salida:
+   - WAV (PCM 16 bits): siempre disponible; convierte lo que haga falta.
+   - MP3 (copia): sin recodificar; requiere que TODAS las pistas sean MP3
+     con la misma tasa de muestreo y modo de canal (la primera pista manda).
+4. Pulsa «Fusionar…», elige dónde guardar y espera la barra de progreso.
+
+FORMATOS ADMITIDOS
+------------------
+Entrada: WAV, MP3, OGG (Vorbis) y FLAC.
+Salida:  WAV (PCM 16 bits) y MP3 en modo copia.
+No se admiten M4A/AAC ni otros formatos: conviértelos antes (por ejemplo
+a WAV o MP3) y vuelve a intentarlo.
+
+LÍMITES
+-------
+Hasta 500 pistas · 512 MB por archivo · 2 GB de entrada en total.
+
+PRIVACIDAD
+----------
+Todo se procesa en tu equipo: ningún archivo se sube a internet y el
+programa no envía dato alguno.
+
+SI TU ANTIVIRUS BLOQUEA EL .EXE
+-------------------------------
+El programa no está firmado digitalmente (no hay certificado), así que
+algunos antivirus lo marcan por error. Si Windows borra el archivo al
+ejecutarlo («Windows no tiene acceso al dispositivo…»):
+1. Abre «Seguridad de Windows» → «Protección contra virus y amenazas» →
+   «Historial de protección».
+2. Busca la amenaza detectada sobre FusionadorDeAudio y pulsa «Permitir».
+3. Si no aparece, ve a «Administrar la configuración» → «Exclusiones» y
+   añade la carpeta donde descomprimiste el programa.
+Luego vuelve a extraer el .exe del ZIP (la copia dentro del ZIP no se
+borra) y ejecútalo de nuevo.
+
+LICENCIA
+--------
+MIT. Componentes internos: go-mp3 (Apache-2.0), oggvorbis (MIT) y
+flac (Unlicense). Consulta LICENSE.txt incluido junto a este archivo.
